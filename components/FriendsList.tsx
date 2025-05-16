@@ -27,9 +27,10 @@ import {
   Tab,
   TabPanels,
   TabPanel,
-  useToast
+  useToast,
+  Code
 } from '@chakra-ui/react';
-import { FaPlus, FaUserPlus, FaPhone, FaVideo, FaEnvelope, FaUserCheck, FaUserTimes } from 'react-icons/fa';
+import { FaPlus, FaUserPlus, FaPhone, FaVideo, FaEnvelope, FaUserCheck, FaUserTimes, FaBug } from 'react-icons/fa';
 import { useAuth } from '../lib/contexts/AuthContext';
 import {
   User,
@@ -38,7 +39,8 @@ import {
   sendFriendRequest,
   acceptFriendRequest,
   rejectFriendRequest,
-  searchUsersByUsername
+  searchUsersByUsername,
+  listAllUsers
 } from '../lib/chatService';
 
 interface FriendsListProps {
@@ -95,17 +97,57 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
     }
     
     try {
+      console.log("Searching for:", searchUsername.trim());
       const results = await searchUsersByUsername(searchUsername.trim());
+      console.log("Search results:", results);
+      
       // Filter out current user and existing friends
       const filteredResults = results.filter(user => 
         user.id !== currentUser?.uid && 
         !friends.some(friend => friend.id === user.id)
       );
+      
       setSearchResults(filteredResults);
+      
+      if (filteredResults.length === 0) {
+        toast({
+          title: 'No users found',
+          description: 'Try a different username or check your spelling',
+          status: 'info',
+          duration: 3000,
+          isClosable: true
+        });
+      }
     } catch (error) {
       console.error('Error searching users:', error);
       toast({
         title: 'Error searching users',
+        description: 'There was an error searching for users. Please try again.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true
+      });
+    }
+  };
+
+  // Add debug function to list all users
+  const handleListAllUsers = async () => {
+    try {
+      const allUsers = await listAllUsers(20);
+      setSearchResults(allUsers.filter(user => user.id !== currentUser?.uid));
+      
+      toast({
+        title: 'Debug: All Users Listed',
+        description: `Found ${allUsers.length} users in database`,
+        status: 'info',
+        duration: 3000,
+        isClosable: true
+      });
+    } catch (error) {
+      console.error('Error listing users:', error);
+      toast({
+        title: 'Error listing users',
+        description: 'There was an error listing all users',
         status: 'error',
         duration: 3000,
         isClosable: true
@@ -292,7 +334,7 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
                     <HStack>
                       <Avatar 
                         size="sm" 
-                        name={friend.username} 
+                        name={friend.displayName || friend.username} 
                         src={friend.photoURL} 
                         bg={
                           friend.status === 'online' ? 'green.500' :
@@ -301,7 +343,7 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
                         }
                       />
                       <VStack spacing={0} align="start" flex="1">
-                        <Text color="white" fontSize="sm" fontWeight="medium">{friend.username}</Text>
+                        <Text color="white" fontSize="sm" fontWeight="medium">{friend.displayName || friend.username}</Text>
                         <Text color="gray.400" fontSize="xs">{friend.status}</Text>
                       </VStack>
                       <HStack spacing={1}>
@@ -411,7 +453,18 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
               </HStack>
             </FormControl>
             
-            {searchResults.length > 0 && (
+            {/* Debug button to list all users */}
+            <Button 
+              leftIcon={<FaBug />} 
+              size="sm" 
+              colorScheme="orange" 
+              onClick={handleListAllUsers}
+              mb={4}
+            >
+              Debug: List All Users
+            </Button>
+            
+            {searchResults.length > 0 ? (
               <List spacing={2} mt={2}>
                 {searchResults.map(user => (
                   <ListItem 
@@ -437,6 +490,12 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
                   </ListItem>
                 ))}
               </List>
+            ) : (
+              searchUsername.trim() !== '' && (
+                <Text color="gray.400" textAlign="center" mt={2}>
+                  No users found matching "{searchUsername}"
+                </Text>
+              )
             )}
           </ModalBody>
           <ModalFooter>
