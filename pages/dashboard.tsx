@@ -24,6 +24,11 @@ export default function Dashboard() {
     if (!loading && !currentUser) {
       router.push('/');
     } else if (currentUser) {
+      // Get socket server URL to display in console
+      const socketServerUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 
+                            (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001');
+      console.log('Socket server configured at:', socketServerUrl);
+      
       // Connect to socket
       console.log('Connecting to socket from dashboard');
       const socket = connectSocket(currentUser.uid);
@@ -37,6 +42,15 @@ export default function Dashboard() {
         
         console.log('Socket connected status:', socket.connected, 'Socket ID:', socket.id);
         voiceChatService.setSocket(socket);
+        
+        // Debug socket configuration
+        console.log('Socket configuration:', {
+          transports: socket.io.opts.transports,
+          timeout: socket.io.opts.timeout,
+          path: socket.io.opts.path,
+          reconnection: socket.io.opts.reconnection,
+          reconnectionAttempts: socket.io.opts.reconnectionAttempts,
+        });
         
         // Setup call notification
         socket.on('call-signal', async ({ from, callId, signal }) => {

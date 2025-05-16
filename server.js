@@ -6,27 +6,37 @@ const cors = require('cors');
 const app = express();
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    // Allow connections from all origins
+    // Allow connections from any origin
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
   },
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  allowEIO3: true, // Allow Engine.IO v3 compatibility
+  pingTimeout: 30000,
+  pingInterval: 25000
 });
 
 // Add better debugging
 io.engine.on("connection_error", (err) => {
-  console.log(err.req);      // the request object
-  console.log(err.code);     // the error code, for example 1
-  console.log(err.message);  // the error message, for example "Session ID unknown"
-  console.log(err.context);  // some additional error context
+  console.log("Connection error details:");
+  console.log("Request:", err.req ? { 
+    url: err.req.url,
+    headers: err.req.headers,
+    method: err.req.method
+  } : "No request object");
+  console.log("Error code:", err.code);
+  console.log("Error message:", err.message);
+  console.log("Error context:", err.context);
 });
 
 // Store active users and call participants

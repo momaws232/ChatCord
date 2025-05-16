@@ -8,9 +8,35 @@ export const connectSocket = (userId: string) => {
     return socket;
   }
   
-  // Always connect to the same domain where the app is running
-  // This will use the rewrite rule in next.config.js
-  const serverUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+  // Try different strategies for connecting to the socket server
+  let serverUrl;
+  
+  // Prioritize environment variable
+  if (process.env.NEXT_PUBLIC_SOCKET_SERVER_URL) {
+    serverUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL;
+    console.log('Using socket server from environment:', serverUrl);
+  } 
+  // Use window.location.origin with socket.io path for same-domain access
+  else if (typeof window !== 'undefined') {
+    // For Railway, we can directly connect to the socket service
+    const isRailway = window.location.hostname.includes('railway.app');
+    if (isRailway) {
+      // Extract subdomain from hostname for Railway deployment
+      // This assumes your socket server is deployed as a separate service
+      const hostParts = window.location.hostname.split('.');
+      const socketSubdomain = hostParts[0].replace('chatcord', 'chatcord-socket');
+      serverUrl = `https://${socketSubdomain}.up.railway.app`;
+      console.log('Using Railway socket URL:', serverUrl);
+    } else {
+      // Use current origin for local development
+      serverUrl = window.location.origin;
+      console.log('Using current origin for socket:', serverUrl);
+    }
+  } else {
+    // Fallback for SSR
+    serverUrl = 'http://localhost:3001';
+    console.log('Using fallback localhost socket URL');
+  }
   
   console.log('Connecting to socket server at:', serverUrl);
   
@@ -22,8 +48,11 @@ export const connectSocket = (userId: string) => {
         userId
       },
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      timeout: 20000,
+      forceNew: false,
+      withCredentials: true
     });
     
     socket.on('connect', () => {
@@ -32,6 +61,11 @@ export const connectSocket = (userId: string) => {
     
     socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
+      // Log additional details in a type-safe way
+      console.error('Socket connection error details:', {
+        message: error.message,
+        stack: error.stack
+      });
     });
     
     socket.on('disconnect', (reason) => {
