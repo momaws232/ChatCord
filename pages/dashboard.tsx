@@ -27,43 +27,67 @@ export default function Dashboard() {
       // Connect to socket
       console.log('Connecting to socket from dashboard');
       const socket = connectSocket(currentUser.uid);
-      console.log('Socket connected:', socket?.connected);
-      voiceChatService.setSocket(socket);
       
-      // Setup call notification
-      socket.on('call-signal', async ({ from, callId, signal }) => {
-        console.log('Received call signal from:', from, 'callId:', callId, 'has signal:', !!signal);
-        
-        // Only show notification for the initial call (when there's no active call)
-        if (!incomingCaller && !activeCallId) {
-          try {
-            console.log('Fetching caller profile for', from);
-            const callerProfile = await getUserProfile(from);
-            if (callerProfile) {
-              console.log('Setting incoming caller:', callerProfile.username);
-              setIncomingCaller(callerProfile);
-            } else {
-              console.error('Caller profile not found');
-            }
-          } catch (error) {
-            console.error('Error fetching caller profile:', error);
-          }
-        } else {
-          console.log('Call notification skipped - already in a call or has incoming caller');
+      // Wait for socket to connect before setting up event handlers
+      const setupSocketHandlers = () => {
+        if (!socket) {
+          console.error('Failed to connect socket');
+          return;
         }
-      });
+        
+        console.log('Socket connected status:', socket.connected, 'Socket ID:', socket.id);
+        voiceChatService.setSocket(socket);
+        
+        // Setup call notification
+        socket.on('call-signal', async ({ from, callId, signal }) => {
+          console.log('Received call signal from:', from, 'callId:', callId, 'has signal:', !!signal);
+          
+          // Only show notification for the initial call (when there's no active call)
+          if (!incomingCaller && !activeCallId) {
+            try {
+              console.log('Fetching caller profile for', from);
+              const callerProfile = await getUserProfile(from);
+              if (callerProfile) {
+                console.log('Setting incoming caller:', callerProfile.username);
+                setIncomingCaller(callerProfile);
+              } else {
+                console.error('Caller profile not found');
+              }
+            } catch (error) {
+              console.error('Error fetching caller profile:', error);
+            }
+          } else {
+            console.log('Call notification skipped - already in a call or has incoming caller');
+          }
+        });
+        
+        // Log all socket events for debugging
+        socket.onAny((event, ...args) => {
+          console.log(`Socket event: ${event}`, args);
+        });
+      };
       
-      // Log all socket events for debugging
-      socket.onAny((event, ...args) => {
-        console.log(`Socket event: ${event}`, args);
-      });
+      if (socket) {
+        if (socket.connected) {
+          setupSocketHandlers();
+        } else {
+          socket.on('connect', () => {
+            console.log('Socket connected, now setting up handlers');
+            setupSocketHandlers();
+          });
+        }
+      } else {
+        console.error('Failed to initialize socket connection');
+      }
       
       // Load friends
       fetchFriends();
       
       return () => {
-        socket.off('call-signal');
-        socket.offAny();
+        if (socket) {
+          socket.off('call-signal');
+          socket.offAny();
+        }
       };
     }
   }, [currentUser, loading, router, incomingCaller, activeCallId]);
