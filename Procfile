@@ -1,1 +1,2 @@
-web: node server.js 
+web: npm run start
+socket: node server.js 
