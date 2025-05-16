@@ -40,7 +40,8 @@ import {
   acceptFriendRequest,
   rejectFriendRequest,
   searchUsersByUsername,
-  listAllUsers
+  listAllUsers,
+  getUserProfile
 } from '../lib/chatService';
 
 interface FriendsListProps {
@@ -182,9 +183,13 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
     if (!currentUser || !friendRequestUsername.trim()) return;
     
     try {
+      console.log(`Searching for user: ${friendRequestUsername.trim()}`);
+      
       const results = await searchUsersByUsername(friendRequestUsername.trim());
+      console.log(`Search results:`, results);
       
       if (results.length === 0) {
+        console.log('No users found with that username');
         toast({
           title: 'User not found',
           description: 'No user found with that username',
@@ -196,8 +201,10 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
       }
       
       const user = results[0]; // Take the first matching user
+      console.log(`Found user:`, user);
       
       if (user.id === currentUser.uid) {
+        console.log('User tried to add themselves');
         toast({
           title: 'Cannot add yourself',
           status: 'warning',
@@ -207,7 +214,9 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
         return;
       }
       
+      // Check if already friends
       if (friends.some(friend => friend.id === user.id)) {
+        console.log('Users are already friends');
         toast({
           title: 'Already friends',
           description: 'You are already friends with this user',
@@ -218,7 +227,24 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
         return;
       }
       
+      // Check if already sent a request
+      const userProfile = await getUserProfile(user.id);
+      if (userProfile?.friendRequests?.includes(currentUser.uid)) {
+        console.log('Friend request already sent');
+        toast({
+          title: 'Request already sent',
+          description: 'You have already sent a friend request to this user',
+          status: 'info',
+          duration: 3000,
+          isClosable: true
+        });
+        return;
+      }
+      
+      console.log(`Sending friend request to ${user.id}`);
       await sendFriendRequest(currentUser.uid, user.id);
+      console.log('Friend request sent successfully');
+      
       toast({
         title: 'Friend request sent',
         status: 'success',
@@ -231,6 +257,7 @@ export default function FriendsList({ onStartChat, onStartCall }: FriendsListPro
       console.error('Error sending friend request:', error);
       toast({
         title: 'Error sending friend request',
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         status: 'error',
         duration: 3000,
         isClosable: true

@@ -101,28 +101,55 @@ export async function updateUserProfile(userId: string, data: Partial<User>) {
 export async function searchUsersByUsername(username: string) {
   try {
     console.log("Searching for username:", username);
+    
+    if (!username || username.trim() === '') {
+      console.log("Empty username search, returning empty results");
+      return [];
+    }
+    
     const usersRef = collection(db, 'users');
     
     // Make search case-insensitive by converting to lowercase
-    // This assumes you store usernames in lowercase or you convert them at creation time
-    const lowercaseUsername = username.toLowerCase();
+    const lowercaseUsername = username.toLowerCase().trim();
+    console.log("Lowercase search term:", lowercaseUsername);
     
-    // Use a simple prefix search that's more lenient
-    const q = query(usersRef, where('username', '>=', lowercaseUsername), where('username', '<=', lowercaseUsername + '\uf8ff'));
-    const querySnapshot = await getDocs(q);
+    // First try an exact match
+    let q = query(usersRef, where('username', '==', lowercaseUsername));
+    let querySnapshot = await getDocs(q);
     
-    console.log("Found users:", querySnapshot.size);
+    if (!querySnapshot.empty) {
+      console.log(`Found ${querySnapshot.size} users with exact match`);
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as User);
+    }
     
-    // If no results, try a more lenient search
+    // Then try a prefix search
+    q = query(usersRef, where('username', '>=', lowercaseUsername), where('username', '<=', lowercaseUsername + '\uf8ff'));
+    querySnapshot = await getDocs(q);
+    
+    console.log(`Found ${querySnapshot.size} users with prefix search`);
+    
+    // If no results, get all users and filter manually
     if (querySnapshot.empty) {
-      console.log("No results with exact search, trying fallback search");
+      console.log("No results with prefix search, trying manual search");
       const allUsersQuery = query(usersRef, limitQuery(20));
       const allUsersSnapshot = await getDocs(allUsersQuery);
+      
+      // Log all users to help with debugging
+      console.log("All users in database:");
+      allUsersSnapshot.docs.forEach(doc => {
+        const userData = doc.data();
+        console.log(`- ${userData.username} (${doc.id})`);
+      });
       
       // Manual filtering for partial matches
       const manualMatches = allUsersSnapshot.docs.filter(doc => {
         const userData = doc.data();
-        return userData.username && userData.username.toLowerCase().includes(lowercaseUsername);
+        if (!userData.username) return false;
+        const match = userData.username.toLowerCase().includes(lowercaseUsername);
+        if (match) {
+          console.log(`Manual match found: ${userData.username}`);
+        }
+        return match;
       });
       
       console.log("Manual search found:", manualMatches.length);
@@ -161,10 +188,41 @@ export async function listAllUsers(limit: number = 50) {
 }
 
 export async function sendFriendRequest(senderId: string, recipientId: string) {
-  const recipientRef = doc(db, 'users', recipientId);
-  await updateDoc(recipientRef, {
-    friendRequests: arrayUnion(senderId)
-  });
+  try {
+    console.log(`Sending friend request from ${senderId} to ${recipientId}`);
+    
+    // First check if the recipient exists
+    const recipientDoc = await getDoc(doc(db, 'users', recipientId));
+    if (!recipientDoc.exists()) {
+      console.error(`Recipient with ID ${recipientId} does not exist`);
+      throw new Error('Recipient user does not exist');
+    }
+    
+    // Make sure the sender exists too
+    const senderDoc = await getDoc(doc(db, 'users', senderId));
+    if (!senderDoc.exists()) {
+      console.error(`Sender with ID ${senderId} does not exist`);
+      throw new Error('Sender user does not exist');
+    }
+    
+    // Check if the request already exists
+    const recipientData = recipientDoc.data() as User;
+    if (recipientData.friendRequests && recipientData.friendRequests.includes(senderId)) {
+      console.log(`Friend request from ${senderId} to ${recipientId} already exists`);
+      return; // Request already exists, no need to add it again
+    }
+    
+    // Update recipient's friend requests
+    const recipientRef = doc(db, 'users', recipientId);
+    await updateDoc(recipientRef, {
+      friendRequests: arrayUnion(senderId)
+    });
+    
+    console.log(`Friend request successfully sent from ${senderId} to ${recipientId}`);
+  } catch (error) {
+    console.error('Error in sendFriendRequest:', error);
+    throw error;
+  }
 }
 
 export async function acceptFriendRequest(userId: string, friendId: string) {
