@@ -76,7 +76,8 @@ export default function Home() {
     try {
       setIsLoading(true);
       setError('');
-      await signup(email, password);
+      console.log('Signing up with:', email, username);
+      await signup(email, password, username);
       
       toast({
         title: 'Account created successfully',
@@ -87,6 +88,7 @@ export default function Home() {
       
       router.push('/dashboard');
     } catch (error: any) {
+      console.error('Signup error:', error);
       setError(error.message || 'Failed to create account');
     } finally {
       setIsLoading(false);
