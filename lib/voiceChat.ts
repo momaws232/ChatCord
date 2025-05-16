@@ -17,15 +17,28 @@ export class VoiceChatService {
   private onPeerStreamHandlers: ((peerId: string, stream: MediaStream) => void)[] = [];
   private onPeerDisconnectHandlers: ((peerId: string) => void)[] = [];
   
-  constructor() {}
+  constructor() {
+    console.log('VoiceChatService initialized');
+  }
 
   setSocket(socket: Socket) {
+    if (!socket) {
+      console.error('Attempted to set null socket in VoiceChatService');
+      return;
+    }
+    
+    console.log('Setting socket in VoiceChatService', socket.id);
     this.socket = socket;
     this.setupSocketListeners();
   }
   
   setupSocketListeners() {
-    if (!this.socket) return;
+    if (!this.socket) {
+      console.error('Cannot setup listeners: Socket is null');
+      return;
+    }
+    
+    console.log('Setting up socket listeners for call signaling');
     
     // When a new user joins the call
     this.socket.on('user-joined-call', ({ userId, callId }) => {
@@ -43,17 +56,22 @@ export class VoiceChatService {
     
     // WebRTC signaling
     this.socket.on('call-signal', ({ from, signal, callId }) => {
-      console.log(`Received call signal from ${from} for call ${callId}`);
+      console.log(`Received call signal from ${from} for call ${callId}`, signal ? 'with signal' : 'without signal');
       
-      if (callId !== this.callId) return;
+      if (callId !== this.callId) {
+        console.log(`Ignoring signal for different call: ${callId}, current: ${this.callId}`);
+        return;
+      }
       
       const existingConnection = this.connections.get(from);
       
       if (existingConnection) {
         // If we already have a connection, just signal
+        console.log(`Sending signal to existing peer ${from}`);
         existingConnection.peer.signal(signal);
       } else {
         // Otherwise create a new peer as the non-initiator
+        console.log(`Creating new peer connection as answer to ${from}`);
         this.answerCall(signal, from);
       }
     });
@@ -62,25 +80,35 @@ export class VoiceChatService {
     this.socket.on('call-participants', ({ users, callId }) => {
       console.log(`Received call participants for ${callId}:`, users);
       
-      if (callId !== this.callId || !this.localStream) return;
+      if (callId !== this.callId || !this.localStream) {
+        console.log(`Ignoring participants for different call or no localStream`);
+        return;
+      }
       
       // Initialize connections to all existing participants
       users.forEach((userId: string) => {
         if (!this.connections.has(userId)) {
+          console.log(`Connecting to existing participant: ${userId}`);
           this.initiateCall(userId);
         }
       });
     });
+
+    console.log('Socket listeners set up successfully');
   }
   
   async startCall(callId: string, userId: string) {
+    console.log(`Starting call ${callId} as user ${userId}`);
     this.callId = callId;
     this.userId = userId;
     
     try {
+      console.log('Requesting microphone access...');
       this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone access granted');
       
       // Notify the server that we're creating a new call
+      console.log(`Creating call ${callId} on server`);
       createCall(callId, userId);
       
       return this.localStream;
@@ -91,13 +119,17 @@ export class VoiceChatService {
   }
   
   async joinExistingCall(callId: string, userId: string) {
+    console.log(`Joining existing call ${callId} as user ${userId}`);
     this.callId = callId;
     this.userId = userId;
     
     try {
+      console.log('Requesting microphone access...');
       this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone access granted');
       
       // Join the existing call
+      console.log(`Joining call ${callId} on server`);
       joinCall(callId, userId);
       
       return this.localStream;
@@ -108,13 +140,19 @@ export class VoiceChatService {
   }
   
   leaveCurrentCall() {
-    if (!this.callId || !this.userId) return;
+    if (!this.callId || !this.userId) {
+      console.log('No active call to leave');
+      return;
+    }
+    
+    console.log(`Leaving call ${this.callId} as user ${this.userId}`);
     
     // Notify server
     leaveCall(this.callId, this.userId);
     
     // Close all peer connections
-    this.connections.forEach(connection => {
+    this.connections.forEach((connection, peerId) => {
+      console.log(`Closing connection with ${peerId}`);
       connection.peer.destroy();
     });
     
@@ -122,11 +160,13 @@ export class VoiceChatService {
     
     // Stop local stream
     if (this.localStream) {
+      console.log('Stopping local audio stream');
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
     }
     
     this.callId = null;
+    console.log('Call left successfully');
   }
   
   private initiateCall(remoteUserId: string) {

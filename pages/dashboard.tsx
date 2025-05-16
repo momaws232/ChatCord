@@ -25,24 +25,37 @@ export default function Dashboard() {
       router.push('/');
     } else if (currentUser) {
       // Connect to socket
+      console.log('Connecting to socket from dashboard');
       const socket = connectSocket(currentUser.uid);
+      console.log('Socket connected:', socket?.connected);
       voiceChatService.setSocket(socket);
       
       // Setup call notification
-      socket.on('call-signal', async ({ from, callId }) => {
-        console.log('Received call signal from:', from, 'callId:', callId);
+      socket.on('call-signal', async ({ from, callId, signal }) => {
+        console.log('Received call signal from:', from, 'callId:', callId, 'has signal:', !!signal);
         
-        // Only show notification for the first signal (initiator)
+        // Only show notification for the initial call (when there's no active call)
         if (!incomingCaller && !activeCallId) {
           try {
+            console.log('Fetching caller profile for', from);
             const callerProfile = await getUserProfile(from);
             if (callerProfile) {
+              console.log('Setting incoming caller:', callerProfile.username);
               setIncomingCaller(callerProfile);
+            } else {
+              console.error('Caller profile not found');
             }
           } catch (error) {
             console.error('Error fetching caller profile:', error);
           }
+        } else {
+          console.log('Call notification skipped - already in a call or has incoming caller');
         }
+      });
+      
+      // Log all socket events for debugging
+      socket.onAny((event, ...args) => {
+        console.log(`Socket event: ${event}`, args);
       });
       
       // Load friends
@@ -50,6 +63,7 @@ export default function Dashboard() {
       
       return () => {
         socket.off('call-signal');
+        socket.offAny();
       };
     }
   }, [currentUser, loading, router, incomingCaller, activeCallId]);
