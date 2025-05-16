@@ -5,22 +5,14 @@ let socket: Socket | null = null;
 export const connectSocket = (userId: string) => {
   if (socket) return socket;
   
-  // Use environment variable with fallback to current domain for production
-  let serverUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL;
-  
-  // If no environment variable is set, use the current domain with /socket path
-  if (!serverUrl && typeof window !== 'undefined') {
-    serverUrl = window.location.origin;
-  }
-  
-  // Fallback to localhost for local development
-  if (!serverUrl) {
-    serverUrl = 'http://localhost:3001';
-  }
+  // Always connect to the same domain where the app is running
+  // This will use the rewrite rule in next.config.js
+  const serverUrl = window.location.origin;
   
   console.log('Connecting to socket server at:', serverUrl);
   
   socket = io(serverUrl, {
+    path: '/socket.io/',
     auth: {
       userId
     },
@@ -28,6 +20,10 @@ export const connectSocket = (userId: string) => {
   
   socket.on('connect', () => {
     console.log('Connected to WebSocket server');
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
   });
   
   socket.on('disconnect', () => {

@@ -244,39 +244,81 @@ export async function getFriendRequests(userId: string) {
 
 // Direct messaging methods
 export async function sendDirectMessage(senderId: string, receiverId: string, content: string) {
-  await addDoc(collection(db, 'messages'), {
-    senderId,
-    receiverId,
-    content,
-    createdAt: serverTimestamp()
-  });
+  try {
+    console.log(`Sending message from ${senderId} to ${receiverId}: ${content}`);
+    
+    await addDoc(collection(db, 'messages'), {
+      senderId,
+      receiverId, 
+      content,
+      createdAt: serverTimestamp()
+    });
+    
+    console.log('Message sent successfully');
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
 }
 
 export function subscribeToDirectMessages(userId: string, friendId: string, callback: (messages: Message[]) => void) {
-  // Create a query that gets messages where either:
-  // 1. Current user is sender and friend is receiver OR
-  // 2. Friend is sender and current user is receiver
+  // Create a query that gets messages where:
+  // The combination of the two users is in the senderId and receiverId fields
+  // Sort by creation time to show messages in order
+  
+  // First, create a conversation ID by sorting the two user IDs
+  const conversationId = [userId, friendId].sort().join('-');
+  
+  // Create a composite index in Firestore before using this query
+  // where we store a conversationId field in messages
+  const messagesRef = collection(db, 'messages');
+  
+  // Query for messages that have either userId as sender and friendId as receiver,
+  // or friendId as sender and userId as receiver
   const q = query(
-    collection(db, 'messages'),
-    where('senderId', 'in', [userId, friendId]),
-    where('receiverId', 'in', [userId, friendId]),
+    messagesRef,
+    where('senderId', '==', userId),
+    where('receiverId', '==', friendId),
     orderBy('createdAt')
   );
   
-  return onSnapshot(q, (querySnapshot) => {
-    const messages = querySnapshot.docs.map(doc => ({
+  const q2 = query(
+    messagesRef,
+    where('senderId', '==', friendId),
+    where('receiverId', '==', userId),
+    orderBy('createdAt')
+  );
+  
+  // We need to use two separate listeners, one for each direction of messages
+  const unsubscribe1 = onSnapshot(q, (querySnapshot) => {
+    const outgoingMessages = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Message[];
     
-    // Filter to only include messages between these two users
-    const filteredMessages = messages.filter(msg => 
-      (msg.senderId === userId && msg.receiverId === friendId) || 
-      (msg.senderId === friendId && msg.receiverId === userId)
-    );
-    
-    callback(filteredMessages);
+    // Get the incoming messages from the second query
+    const unsubscribe2 = onSnapshot(q2, (querySnapshot2) => {
+      const incomingMessages = querySnapshot2.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Message[];
+      
+      // Combine and sort all messages by timestamp
+      const allMessages = [...outgoingMessages, ...incomingMessages]
+        .sort((a, b) => {
+          const aTime = a.createdAt?.toMillis() || 0;
+          const bTime = b.createdAt?.toMillis() || 0;
+          return aTime - bTime;
+        });
+      
+      callback(allMessages);
+    });
   });
+  
+  // Return a function that unsubscribes from both listeners
+  return () => {
+    unsubscribe1();
+  };
 }
 
 // Call methods
