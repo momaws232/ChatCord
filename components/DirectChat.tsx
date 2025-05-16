@@ -9,9 +9,10 @@ import {
   Avatar,
   Flex,
   Button,
-  useToast
+  useToast,
+  Badge
 } from '@chakra-ui/react';
-import { FaPaperPlane, FaPhone, FaVideo } from 'react-icons/fa';
+import { FaPaperPlane, FaPhone, FaPhoneSlash } from 'react-icons/fa';
 import { useAuth } from '../lib/contexts/AuthContext';
 import { 
   User, 
@@ -26,9 +27,11 @@ import { sendDirectMessage as sendSocketMessage } from '../lib/socket';
 interface DirectChatProps {
   friend: User | null;
   onStartCall: (friend: User) => void;
+  activeCallId: string | null;
+  onEndCall: () => void;
 }
 
-export default function DirectChat({ friend, onStartCall }: DirectChatProps) {
+export default function DirectChat({ friend, onStartCall, activeCallId, onEndCall }: DirectChatProps) {
   const { currentUser } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageInput, setMessageInput] = useState('');
@@ -112,6 +115,15 @@ export default function DirectChat({ friend, onStartCall }: DirectChatProps) {
     return '';
   };
 
+  // Check if call is active with current friend
+  const isCallActive = () => {
+    if (!activeCallId || !friend || !currentUser) return false;
+    
+    // The call ID is created by sorting and joining the user IDs
+    const expectedCallId = [currentUser.uid, friend.id].sort().join('-');
+    return activeCallId === expectedCallId;
+  };
+
   if (!friend) {
     return (
       <Flex
@@ -136,15 +148,30 @@ export default function DirectChat({ friend, onStartCall }: DirectChatProps) {
         borderBottom="1px solid"
         borderColor="gray.600"
       >
-        <Avatar size="sm" name={friend.username} src={friend.photoURL} />
-        <Text fontWeight="bold">{friend.username}</Text>
+        <Avatar size="sm" name={friend.displayName || friend.username} src={friend.photoURL} />
+        <VStack spacing={0} alignItems="flex-start">
+          <Text fontWeight="bold">{friend.displayName || friend.username}</Text>
+          {isCallActive() && (
+            <Badge colorScheme="green" variant="subtle">In Call</Badge>
+          )}
+        </VStack>
         <Box flex={1} />
-        <IconButton
-          aria-label="Voice call"
-          icon={<FaPhone />}
-          variant="ghost"
-          onClick={handleStartCall}
-        />
+        {isCallActive() ? (
+          <IconButton
+            aria-label="End call"
+            icon={<FaPhoneSlash />}
+            variant="ghost"
+            colorScheme="red"
+            onClick={onEndCall}
+          />
+        ) : (
+          <IconButton
+            aria-label="Voice call"
+            icon={<FaPhone />}
+            variant="ghost"
+            onClick={handleStartCall}
+          />
+        )}
       </HStack>
 
       {/* Messages Area */}
@@ -185,10 +212,21 @@ export default function DirectChat({ friend, onStartCall }: DirectChatProps) {
         <div ref={messagesEndRef} />
       </VStack>
 
+      {/* Active Call Notification */}
+      {isCallActive() && (
+        <HStack p={2} bg="green.700" justifyContent="center">
+          <FaPhone />
+          <Text>Call in progress with {friend.displayName || friend.username}</Text>
+          <Button size="sm" leftIcon={<FaPhoneSlash />} colorScheme="red" onClick={onEndCall}>
+            End
+          </Button>
+        </HStack>
+      )}
+
       {/* Message Input */}
       <HStack p={4} bg="gray.800">
         <Input
-          placeholder={`Message ${friend.username}`}
+          placeholder={`Message ${friend.displayName || friend.username}`}
           value={messageInput}
           onChange={(e) => setMessageInput(e.target.value)}
           onKeyPress={handleKeyPress}
