@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read and write their own data
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow updates to friends and friendRequests arrays for valid friend operations
+      allow update: if request.auth != null && 
+                    (request.resource.data.diff(resource.data).affectedKeys()
+                    .hasOnly(['friends', 'friendRequests', 'status']));
+    }
+    
+    // Messages can be created by authenticated users
+    // Messages can be read by sender or receiver
+    match /messages/{messageId} {
+      allow create: if request.auth != null && 
+                     request.resource.data.senderId == request.auth.uid;
+      allow read: if request.auth != null && 
+                  (resource.data.senderId == request.auth.uid || 
+                   resource.data.receiverId == request.auth.uid);
+    }
+    
+    // Calls can be managed by participants
+    match /calls/{callId} {
+      allow create: if request.auth != null && 
+                     request.resource.data.creatorId == request.auth.uid;
+      allow read, update: if request.auth != null && 
+                          resource.data.participants.hasAny([request.auth.uid]);
+    }
+  }
+} 

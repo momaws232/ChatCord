@@ -1,0 +1,41 @@
+{
+  "name": "chatcord",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "server": "node server.js",
+    "dev:full": "concurrently \"npm run dev\" \"npm run server\""
+  },
+  "dependencies": {
+    "next": "^13.4.12",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.0.4",
+    "firebase": "^9.22.0",
+    "simple-peer": "^9.11.1",
+    "socket.io-client": "^4.6.1",
+    "@chakra-ui/react": "^2.6.1",
+    "@emotion/react": "^11.11.0",
+    "@emotion/styled": "^11.11.0",
+    "framer-motion": "^10.12.12",
+    "react-icons": "^4.8.0",
+    "uuid": "^9.0.0",
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.1",
+    "@types/simple-peer": "^9.11.5",
+    "@types/uuid": "^9.0.1",
+    "eslint": "^8.39.0",
+    "eslint-config-next": "^13.3.4",
+    "concurrently": "^8.0.1"
+  }
+} 
