@@ -9,8 +9,8 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    // Use environment variable with fallback for local development
-    origin: process.env.ALLOWED_ORIGINS || 'http://localhost:3000',
+    // Allow connections from all origins
+    origin: '*',
     methods: ['GET', 'POST'],
     credentials: true
   }
