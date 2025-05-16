@@ -5,8 +5,20 @@ let socket: Socket | null = null;
 export const connectSocket = (userId: string) => {
   if (socket) return socket;
   
-  // Use environment variable with fallback to localhost
-  const serverUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL || 'http://localhost:3001';
+  // Use environment variable with fallback to current domain for production
+  let serverUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL;
+  
+  // If no environment variable is set, use the current domain with /socket path
+  if (!serverUrl && typeof window !== 'undefined') {
+    serverUrl = window.location.origin;
+  }
+  
+  // Fallback to localhost for local development
+  if (!serverUrl) {
+    serverUrl = 'http://localhost:3001';
+  }
+  
+  console.log('Connecting to socket server at:', serverUrl);
   
   socket = io(serverUrl, {
     auth: {
